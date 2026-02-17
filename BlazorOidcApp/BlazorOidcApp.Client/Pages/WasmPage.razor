@@ -1,0 +1,88 @@
+@page "/wasm-page"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Authorize]
+
+@inject ApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>WASM Page</PageTitle>
+
+<h2>WASM Page <span class="badge bg-success">WebAssembly Interactive</span></h2>
+
+<p class="text-muted">
+    This page runs entirely in the browser. It obtains an access token via the BFF endpoint
+    (<code>/bff/token</code>) and calls the API directly with a <code>Bearer</code> header.
+</p>
+
+<button class="btn btn-success" @onclick="LoadWeather" disabled="@isLoading">
+    @(isLoading ? "Calling API..." : "Fetch Weather from API")
+</button>
+
+@if (forecasts is not null)
+{
+    <table class="table table-striped mt-3">
+        <thead>
+            <tr><th>Date</th><th>Temp (°C)</th><th>Temp (°F)</th><th>Summary</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var f in forecasts)
+            {
+                <tr>
+                    <td>@f.Date.ToShortDateString()</td>
+                    <td>@f.TemperatureC</td>
+                    <td>@f.TemperatureF</td>
+                    <td>@f.Summary</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (errorMessage is not null)
+{
+    <div class="alert alert-danger mt-3">
+        @errorMessage
+        @if (isUnauthorized)
+        {
+            <a href="auth/login" class="btn btn-warning ms-2 btn-sm">Login again</a>
+        }
+    </div>
+}
+
+@code {
+    private WeatherForecast[]? forecasts;
+    private string? errorMessage;
+    private bool isLoading;
+    private bool isUnauthorized;
+
+    private async Task LoadWeather()
+    {
+        isLoading      = true;
+        errorMessage   = null;
+        isUnauthorized = false;
+        forecasts      = null;
+
+        try
+        {
+            forecasts = await ApiClient.GetAsync<WeatherForecast[]>("/api/weather");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            errorMessage   = ex.Message;
+            isUnauthorized = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+    {
+        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    }
+}

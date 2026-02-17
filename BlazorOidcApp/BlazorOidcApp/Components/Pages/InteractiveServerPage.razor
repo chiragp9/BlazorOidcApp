@@ -1,0 +1,71 @@
+@page "/interactive-server"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Interactive Server</PageTitle>
+
+<h2>Interactive Server Page <span class="badge bg-primary">Server Interactive</span></h2>
+
+<p class="text-muted">
+    This page runs on the server via a SignalR connection. It has full access to server-side
+    services and DI. The token is attached automatically via <code>BearerTokenHandler</code>.
+</p>
+
+<button class="btn btn-primary" @onclick="CallApi" disabled="@isLoading">
+    @(isLoading ? "Loading..." : "Call API")
+</button>
+
+@if (forecasts is not null)
+{
+    <table class="table table-striped mt-3">
+        <thead>
+            <tr><th>Date</th><th>Temp (°C)</th><th>Summary</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var f in forecasts)
+            {
+                <tr>
+                    <td>@f.Date.ToShortDateString()</td>
+                    <td>@f.TemperatureC</td>
+                    <td>@f.Summary</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (errorMessage is not null)
+{
+    <div class="alert alert-danger mt-3">@errorMessage</div>
+}
+
+@code {
+    private WeatherForecast[]? forecasts;
+    private string? errorMessage;
+    private bool isLoading;
+
+    private async Task CallApi()
+    {
+        isLoading    = true;
+        errorMessage = null;
+        forecasts    = null;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            forecasts  = await client.GetFromJsonAsync<WeatherForecast[]>("/api/weather");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to call API: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary);
+}

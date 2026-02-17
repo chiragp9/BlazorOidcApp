@@ -1,0 +1,72 @@
+@page "/weather"
+@* Static SSR with streaming. Calls API via server-side named HttpClient. *@
+@attribute [StreamRendering]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Weather</PageTitle>
+
+<h2>Weather <span class="badge bg-secondary">Static SSR + Streaming</span></h2>
+
+<p class="text-muted">Fetched from the API project using a Bearer token (server-side).</p>
+
+@if (forecasts == null)
+{
+    <p><em>Loading from API...</em></p>
+}
+else if (errorMessage is not null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Temp. (°C)</th>
+                <th>Temp. (°F)</th>
+                <th>Summary</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var forecast in forecasts)
+            {
+                <tr>
+                    <td>@forecast.Date.ToShortDateString()</td>
+                    <td>@forecast.TemperatureC</td>
+                    <td>@forecast.TemperatureF</td>
+                    <td>@forecast.Summary</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private WeatherForecast[]? forecasts;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            forecasts  = await client.GetFromJsonAsync<WeatherForecast[]>("/api/weather");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Could not load weather data: {ex.Message}";
+            forecasts    = [];
+        }
+    }
+
+    private class WeatherForecast
+    {
+        public DateOnly Date { get; set; }
+        public int TemperatureC { get; set; }
+        public string? Summary { get; set; }
+        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    }
+}

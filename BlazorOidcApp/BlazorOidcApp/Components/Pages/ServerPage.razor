@@ -1,0 +1,78 @@
+@page "/server-page"
+@* No @rendermode = static SSR. Full HttpContext available. *@
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.AspNetCore.Authentication
+
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Server Page (SSR)</PageTitle>
+
+<h2>Server Page <span class="badge bg-secondary">Static SSR</span></h2>
+
+<div class="row g-3 mt-2">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Authenticated User</div>
+            <div class="card-body">
+                <p><strong>Name:</strong> @username</p>
+                <p><strong>Email:</strong> @email</p>
+                <p><strong>Token (first 40 chars):</strong><br />
+                    <code>@tokenPreview</code>
+                </p>
+                <p><strong>Expires:</strong> @expiresAt</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">API Response</div>
+            <div class="card-body">
+                @if (apiResult is not null)
+                {
+                    <p class="text-success">@apiResult</p>
+                }
+                else if (apiError is not null)
+                {
+                    <p class="text-danger">@apiError</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? username;
+    private string? email;
+    private string? tokenPreview;
+    private string? expiresAt;
+    private string? apiResult;
+    private string? apiError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var ctx = HttpContextAccessor.HttpContext!;
+
+        username     = ctx.User.Identity?.Name;
+        email        = ctx.User.FindFirst("email")?.Value;
+        var token    = await ctx.GetTokenAsync("access_token");
+        tokenPreview = token is not null ? token[..Math.Min(40, token.Length)] + "..." : "none";
+        expiresAt    = await ctx.GetTokenAsync("expires_at");
+
+        // Call the API directly from the server using the named HttpClient
+        // (BearerTokenHandler auto-attaches the token)
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            var data   = await client.GetFromJsonAsync<WeatherForecast[]>("/api/weather");
+            apiResult  = $"API returned {data?.Length ?? 0} weather forecast(s).";
+        }
+        catch (Exception ex)
+        {
+            apiError = $"API call failed: {ex.Message}";
+        }
+    }
+
+    record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary);
+}

@@ -1,0 +1,24 @@
+@page "/"
+
+<PageTitle>Home</PageTitle>
+
+<h1>Blazor OIDC Demo</h1>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="alert alert-success">
+            <strong>Authenticated</strong> as <em>@context.User.Identity?.Name</em>
+        </div>
+        <p>Use the navigation to explore the different rendering modes:</p>
+        <ul>
+            <li><a href="server-page"><strong>Server Page (SSR)</strong></a> — static server-rendered, reads token directly from HttpContext</li>
+            <li><a href="interactive-server"><strong>Interactive Server</strong></a> — SignalR-connected, full server-side services available</li>
+            <li><a href="wasm-page"><strong>WASM Page</strong></a> — runs in the browser, fetches token via BFF and calls API directly</li>
+        </ul>
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-warning">
+            You are not logged in. <a href="auth/login">Login with OIDC</a> to access protected pages.
+        </div>
+    </NotAuthorized>
+</AuthorizeView>

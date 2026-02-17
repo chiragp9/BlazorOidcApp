@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/BlazorOidcApp/">
+    <Project Path="BlazorOidcApp/BlazorOidcApp.Client/BlazorOidcApp.Client.csproj" />
+    <Project Path="BlazorOidcApp/BlazorOidcApp/BlazorOidcApp.csproj" />
+  </Folder>
+  <Project Path="BlazorOidcApp.Api/BlazorOidcApp.Api.csproj" />
+</Solution>
