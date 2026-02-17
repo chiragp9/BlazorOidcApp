@@ -19,4 +19,7 @@ builder.Services.AddHttpClient<ApiClient>(client =>
 
 builder.Services.AddScoped<TokenService>();
 
+// Auto render mode: WASM-side implementation of shared API service
+builder.Services.AddScoped<IWeatherApiService, WasmWeatherApiService>();
+
 await builder.Build().RunAsync();

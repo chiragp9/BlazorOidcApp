@@ -1,5 +1,7 @@
 using BlazorOidcApp;
 using BlazorOidcApp.Components;
+using BlazorOidcApp.Client.Services;
+using BlazorOidcApp.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -61,6 +63,9 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+
+// ── Auto render mode: server-side implementation of shared API service ───────
+builder.Services.AddScoped<IWeatherApiService, ServerWeatherApiService>();
 
 var app = builder.Build();
 
