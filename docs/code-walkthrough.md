@@ -9,6 +9,7 @@ This document walks through every important file in the project with plain-Engli
 1. [BlazorOidcApp — Server Project](#1-blazoroidcapp--server-project)
    - [Program.cs](#programcs)
    - [BearerTokenHandler.cs](#bearertokenhandlercs)
+   - [Dashboard.razor](#dashboardrazor)
    - [ServerPage.razor](#serverpagerazor)
    - [InteractiveServerPage.razor](#interactiveserverpagerazor)
    - [Weather.razor](#weatherrazor)
@@ -234,6 +235,41 @@ public class BearerTokenHandler(IHttpContextAccessor httpContextAccessor) : Dele
     }
 }
 ```
+
+---
+
+### Dashboard.razor
+
+The central overview page for the app. Static SSR — renders once on the server, no interactivity needed. Shows who is logged in and provides links to every render mode demo page.
+
+```razor
+@page "/dashboard"
+@* No @rendermode = Static SSR. Full HttpContext available. *@
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authentication
+
+@inject IHttpContextAccessor HttpContextAccessor
+```
+
+```csharp
+protected override async Task OnInitializedAsync()
+{
+    var ctx = HttpContextAccessor.HttpContext!;
+
+    // Read claims from the server-side session cookie — no API call needed.
+    username  = ctx.User.Identity?.Name;
+    email     = ctx.User.FindFirst("email")?.Value;
+    subject   = ctx.User.FindFirst("sub")?.Value;  // Unique user ID from the OIDC provider
+    expiresAt = await ctx.GetTokenAsync("expires_at");
+}
+```
+
+The page body renders a **user info card** (name, email, subject, token expiry) and **six Bootstrap cards**, one per render mode demo page. Each card has:
+- A colour-coded badge matching the render mode (grey=SSR, blue=SignalR, yellow=Auto, green=WASM)
+- A short description of how that mode works
+- An **Open** button that navigates to the page
+
+**Why Static SSR here?** The dashboard only reads data that is already in the session cookie — no API call, no interactivity. Static SSR is the simplest and most efficient choice.
 
 ---
 
@@ -832,6 +868,7 @@ app.MapGet("/api/me", (ClaimsPrincipal user) =>
 
 | What you see | What runs | How token is obtained |
 |---|---|---|
+| Dashboard (SSR) | C# on server, once | User claims from `HttpContext` cookie; no API call |
 | Server Page (SSR) | C# on server, once | Read from `HttpContext` cookie directly |
 | Weather (SSR) | C# on server, streaming | Read from `HttpContext` via `BearerTokenHandler` |
 | Interactive Server | C# on server, WebSocket | Read from session via `BearerTokenHandler` |

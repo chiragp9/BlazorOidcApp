@@ -203,6 +203,7 @@ This pattern is documented in the [IETF OAuth 2.0 for Browser-Based Apps](https:
 
 | Page | Render Mode | How it calls the API |
 |------|-------------|----------------------|
+| `Dashboard.razor` | Static SSR | Reads user claims from `HttpContext`; no API call |
 | `ServerPage.razor` | Static SSR | Reads token from `HttpContext` directly |
 | `Weather.razor` | Static SSR (streaming) | Named `HttpClient` + `BearerTokenHandler` |
 | `InteractiveServerPage.razor` | Interactive Server (SignalR) | Named `HttpClient` + `BearerTokenHandler` |
@@ -373,6 +374,7 @@ The page injects `IWeatherApiService` and calls `GetWeatherAsync()` — identica
 | Nav Label | Route | Render Mode |
 |-----------|-------|-------------|
 | Home | `/` | Static SSR |
+| Dashboard | `/dashboard` | Static SSR |
 | Server Page (SSR) | `/server-page` | Static SSR |
 | Interactive Server | `/interactive-server` | Interactive Server (SignalR) |
 | Auto Page | `/auto-page` | Interactive Auto |
