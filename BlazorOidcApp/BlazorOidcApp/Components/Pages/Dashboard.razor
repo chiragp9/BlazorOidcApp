@@ -1,0 +1,143 @@
+@page "/dashboard"
+@* No @rendermode = Static SSR. Full HttpContext available. *@
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.AspNetCore.Authentication
+
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>Dashboard</PageTitle>
+
+<h2>Dashboard <span class="badge bg-secondary">Static SSR</span></h2>
+
+@* ── User info card ── *@
+<div class="card mb-4">
+    <div class="card-header fw-semibold">Signed-in User</div>
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-sm-3 text-muted">Name</div>
+            <div class="col-sm-9"><strong>@username</strong></div>
+
+            <div class="col-sm-3 text-muted">Email</div>
+            <div class="col-sm-9">@(email ?? "—")</div>
+
+            <div class="col-sm-3 text-muted">Subject</div>
+            <div class="col-sm-9"><code>@(subject ?? "—")</code></div>
+
+            <div class="col-sm-3 text-muted">Token expires</div>
+            <div class="col-sm-9">@(expiresAt ?? "—")</div>
+        </div>
+    </div>
+</div>
+
+@* ── Render mode cards ── *@
+<h5 class="mb-3">Render Mode Demo Pages</h5>
+<div class="row g-3">
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-secondary">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <span class="badge bg-secondary me-1">SSR</span>
+                    Server Page
+                </h6>
+                <p class="card-text small text-muted">
+                    Reads token directly from <code>HttpContext</code>. Full server render, no interactivity.
+                </p>
+                <a href="/server-page" class="btn btn-sm btn-outline-secondary">Open</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-secondary">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <span class="badge bg-secondary me-1">SSR</span>
+                    Weather (Streaming)
+                </h6>
+                <p class="card-text small text-muted">
+                    Static SSR with streaming render. Sends initial HTML immediately, streams data as it arrives.
+                </p>
+                <a href="/weather" class="btn btn-sm btn-outline-secondary">Open</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-primary">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <span class="badge bg-primary me-1">SignalR</span>
+                    Interactive Server
+                </h6>
+                <p class="card-text small text-muted">
+                    C# runs on server over a WebSocket. Button clicks travel over SignalR — instant, no page reload.
+                </p>
+                <a href="/interactive-server" class="btn btn-sm btn-outline-primary">Open</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-warning">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <span class="badge bg-warning text-dark me-1">Auto</span>
+                    Auto Page
+                </h6>
+                <p class="card-text small text-muted">
+                    First visit: Interactive Server (instant). Subsequent visits: WebAssembly (no server connection).
+                </p>
+                <a href="/auto-page" class="btn btn-sm btn-outline-warning">Open</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-success">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <span class="badge bg-success me-1">WASM</span>
+                    WASM Page
+                </h6>
+                <p class="card-text small text-muted">
+                    Runs entirely in the browser. Fetches token from <code>/bff/token</code>, calls API directly.
+                </p>
+                <a href="/wasm-page" class="btn btn-sm btn-outline-success">Open</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 border-success">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <span class="badge bg-success me-1">WASM</span>
+                    Counter
+                </h6>
+                <p class="card-text small text-muted">
+                    Stateful WebAssembly demo. Counter lives in browser memory — no API call, no server round-trip.
+                </p>
+                <a href="/counter" class="btn btn-sm btn-outline-success">Open</a>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private string? username;
+    private string? email;
+    private string? subject;
+    private string? expiresAt;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var ctx = HttpContextAccessor.HttpContext!;
+
+        username  = ctx.User.Identity?.Name;
+        email     = ctx.User.FindFirst("email")?.Value;
+        subject   = ctx.User.FindFirst("sub")?.Value;
+        expiresAt = await ctx.GetTokenAsync("expires_at");
+    }
+}
