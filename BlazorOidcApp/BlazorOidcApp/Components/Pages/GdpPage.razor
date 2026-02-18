@@ -27,11 +27,9 @@
         <tbody>
             @foreach (var entry in GdpData)
             {
-                @{
-                    var worldSharePct = entry.GdpTrillions / WorldGdp * 100;
-                    var barWidth      = worldSharePct.ToString("F0");
-                    var barLabel      = worldSharePct.ToString("F1");
-                }
+                var worldSharePct = entry.GdpTrillions / WorldGdp * 100;
+                var barWidth      = worldSharePct.ToString("F0");
+                var barLabel      = worldSharePct.ToString("F1");
                 <tr>
                     <td><strong>@entry.Rank</strong></td>
                     <td>
