@@ -10,6 +10,7 @@ This document walks through every important file in the project with plain-Engli
    - [Program.cs](#programcs)
    - [BearerTokenHandler.cs](#bearertokenhandlercs)
    - [Dashboard.razor](#dashboardrazor)
+   - [GdpPage.razor](#gdppagerazor)
    - [ServerPage.razor](#serverpagerazor)
    - [InteractiveServerPage.razor](#interactiveserverpagerazor)
    - [Weather.razor](#weatherrazor)
@@ -270,6 +271,62 @@ The page body renders a **user info card** (name, email, subject, token expiry) 
 - An **Open** button that navigates to the page
 
 **Why Static SSR here?** The dashboard only reads data that is already in the session cookie — no API call, no interactivity. Static SSR is the simplest and most efficient choice.
+
+---
+
+### GdpPage.razor
+
+A static SSR page that displays a table of the top 10 countries by nominal GDP. All data is hardcoded — there is no API call and no interactivity.
+
+```razor
+@page "/gdp"
+@* No @rendermode = Static SSR. Data is hardcoded — no API call, no interactivity needed. *@
+@attribute [Authorize]
+```
+
+```csharp
+// A record type to hold each GDP entry — rank, flag emoji, country name, and GDP value.
+private record GdpEntry(int Rank, string Flag, string Country, double GdpTrillions);
+
+// 'static readonly' — allocated once when the app starts, shared across all requests.
+// No allocation cost per-user, no repeated initialisation.
+private static readonly GdpEntry[] GdpData =
+[
+    new(1,  "🇺🇸", "United States",  28.8),
+    new(2,  "🇨🇳", "China",          18.5),
+    // ... (10 entries total — IMF WEO April 2024 nominal GDP estimates)
+];
+
+// 'const' — a compile-time constant. Approximate world nominal GDP (USD trillions).
+private const double WorldGdp = 110.0;
+```
+
+Inside the table's `@foreach` loop, local variables are calculated per row:
+
+```razor
+@{
+    // Both values use WorldGdp as denominator so the bar width and % label are consistent.
+    var worldSharePct = entry.GdpTrillions / WorldGdp * 100;
+    var barWidth      = worldSharePct.ToString("F0");   // Rounded integer for CSS width
+    var barLabel      = worldSharePct.ToString("F1");   // One decimal for display label
+}
+<div class="progress-bar bg-primary"
+     role="progressbar"
+     aria-valuenow="@barWidth"
+     aria-valuemin="0"
+     aria-valuemax="100"
+     aria-label="@entry.Country: @barLabel% of world GDP"
+     style="width:@barWidth%">
+</div>
+```
+
+**Key design decisions:**
+- `static readonly` data: allocated once per `AppDomain`, zero per-request overhead.
+- `const WorldGdp`: the same denominator is used for the progress bar width **and** the `%` label, so they always agree visually.
+- Bootstrap 5 accessibility: `role="progressbar"` + `aria-valuenow/min/max/label` make the bars readable by screen readers.
+- No `@inject`, no service calls — simplest possible SSR page.
+
+**Why Static SSR here?** The data never changes and requires no user context. Static SSR gives the fastest response with zero server-side state.
 
 ---
 
@@ -869,6 +926,7 @@ app.MapGet("/api/me", (ClaimsPrincipal user) =>
 | What you see | What runs | How token is obtained |
 |---|---|---|
 | Dashboard (SSR) | C# on server, once | User claims from `HttpContext` cookie; no API call |
+| GDP Top 10 (SSR) | C# on server, once | No token needed; hardcoded data |
 | Server Page (SSR) | C# on server, once | Read from `HttpContext` cookie directly |
 | Weather (SSR) | C# on server, streaming | Read from `HttpContext` via `BearerTokenHandler` |
 | Interactive Server | C# on server, WebSocket | Read from session via `BearerTokenHandler` |
