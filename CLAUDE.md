@@ -36,10 +36,11 @@ This is a **Backend-for-Frontend (BFF) pattern** implementation demonstrating se
 
 ### Rendering Modes
 
-The server project uses three Blazor render modes, each demonstrated by a page:
+The server project uses four Blazor render modes, each demonstrated by a page:
 - **Static SSR** (`ServerPage.razor`, `Weather.razor`) — Renders on server, no interactivity. Accesses `HttpContext` directly for tokens and user info.
 - **Interactive Server** (`InteractiveServerPage.razor`) — Server-side C# over SignalR. Uses `BearerTokenHandler` (a `DelegatingHandler`) to inject Bearer tokens into server-side `HttpClient` calls to the API.
 - **Interactive WebAssembly** (`WasmPage.razor`, `Counter.razor`) — Runs in browser. Fetches token from BFF, calls API directly from the browser.
+- **Interactive Auto** (`AutoPage.razor`) — First visit uses Interactive Server (instant startup); subsequent visits switch to WebAssembly once the WASM bundle is cached. Uses `IWeatherApiService` abstraction with two DI-registered implementations: `ServerWeatherApiService` (server DI) and `WasmWeatherApiService` (WASM DI).
 
 ### Authentication Flow
 

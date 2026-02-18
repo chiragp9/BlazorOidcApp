@@ -206,6 +206,7 @@ This pattern is documented in the [IETF OAuth 2.0 for Browser-Based Apps](https:
 | `ServerPage.razor` | Static SSR | Reads token from `HttpContext` directly |
 | `Weather.razor` | Static SSR (streaming) | Named `HttpClient` + `BearerTokenHandler` |
 | `InteractiveServerPage.razor` | Interactive Server (SignalR) | Named `HttpClient` + `BearerTokenHandler` |
+| `AutoPage.razor` | Interactive Auto | `IWeatherApiService` — `ServerWeatherApiService` on server, `WasmWeatherApiService` in browser |
 | `WasmPage.razor` | Interactive WebAssembly | `ApiClient` + `TokenService` → `/bff/token` |
 | `Counter.razor` | Interactive WebAssembly | No API call (stateful counter demo) |
 
@@ -305,17 +306,67 @@ User clicks button
 
 **In this project:** `InteractiveServerPage.razor`
 
+### Interactive Auto
+
+```
+First visit (WASM bundle not yet cached):
+Browser requests /auto-page
+        │
+        ▼
+Server prerenders initial HTML → sends it
+        │
+        ▼
+Browser loads blazor.web.js
+  → Opens WebSocket (SignalR) back to server
+  → Page runs as Interactive Server
+  → Meanwhile: browser downloads WASM bundle in background
+
+Subsequent visits (WASM bundle cached):
+Browser requests /auto-page
+        │
+        ▼
+Server sends lightweight HTML shell
+        │
+        ▼
+Browser loads WASM bundle from cache (fast — already downloaded)
+  → Page runs entirely in WebAssembly
+  → No SignalR connection needed
+```
+
+- First visit: instant interactivity via SignalR (no WASM download wait)
+- Subsequent visits: fully client-side in WebAssembly (no server connection)
+- Best of both worlds: fast startup + scalable runtime
+- **The challenge**: the component must work in both server DI and WASM DI contexts
+
+#### The IWeatherApiService Pattern
+
+Because the component runs server-side first and WASM later, it cannot simply inject `ApiClient` (WASM-only) or use `HttpContext` (server-only). Instead, a shared interface is used:
+
+```
+IWeatherApiService  (defined in WASM project, shared)
+    │
+    ├── ServerWeatherApiService  (registered in server DI)
+    │       uses: IHttpClientFactory → named "Api" client → BearerTokenHandler
+    │
+    └── WasmWeatherApiService    (registered in WASM DI)
+            uses: ApiClient → TokenService → /bff/token
+```
+
+The page injects `IWeatherApiService` and calls `GetWeatherAsync()` — identical code regardless of which runtime is active. `OperatingSystem.IsBrowser()` is used only for the UI badge that shows the current runtime.
+
+**In this project:** `AutoPage.razor`, `IWeatherApiService.cs`, `ServerWeatherApiService.cs`, `WasmWeatherApiService.cs`
+
 ### Side-by-Side Comparison
 
-| | Static SSR | Interactive Server |
-|--|--|--|
-| Rendering | Server, once per request | Server, continuously via SignalR |
-| Connection | HTTP request/response | Persistent WebSocket |
-| Button clicks | Full page reload | Instant, no reload |
-| `HttpContext` access | Yes | No |
-| Token access | From `HttpContext` directly | Via `BearerTokenHandler` on `HttpClient` |
-| Server memory per user | None (stateless) | Yes (component kept in memory) |
-| Best for | Read-only pages, forms | Dashboards, real-time UI, complex state |
+| | Static SSR | Interactive Server | Interactive Auto | Interactive WebAssembly |
+|--|--|--|--|--|
+| Rendering | Server, once | Server, via SignalR | Server first → WASM after | Browser (WASM) |
+| Connection | HTTP only | Persistent WebSocket | WebSocket → none | None (WASM) |
+| Button clicks | Full page reload | Instant (WebSocket) | Instant (both modes) | Instant (WASM) |
+| `HttpContext` access | Yes | No | No | No |
+| Token source | `HttpContext` directly | `BearerTokenHandler` | `IWeatherApiService` abstraction | `TokenService` → `/bff/token` |
+| Server memory per user | None | Yes (SignalR circuit) | Yes → None after WASM loads | None |
+| Best for | Read-only pages | Dashboards, real-time UI | Pages needing fast startup + scalable runtime | Fully client-side apps |
 
 ### Navigation Menu Mapping
 
@@ -324,6 +375,7 @@ User clicks button
 | Home | `/` | Static SSR |
 | Server Page (SSR) | `/server-page` | Static SSR |
 | Interactive Server | `/interactive-server` | Interactive Server (SignalR) |
+| Auto Page | `/auto-page` | Interactive Auto |
 | WASM Page | `/wasm-page` | Interactive WebAssembly |
 | Counter (WASM) | `/counter` | Interactive WebAssembly |
 | Weather (SSR) | `/weather` | Static SSR (with streaming) |

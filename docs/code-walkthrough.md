@@ -12,12 +12,16 @@ This document walks through every important file in the project with plain-Engli
    - [ServerPage.razor](#serverpagerazor)
    - [InteractiveServerPage.razor](#interactiveserverpagerazor)
    - [Weather.razor](#weatherrazor)
+   - [ServerWeatherApiService.cs](#serverweatherapiservicecs)
 2. [BlazorOidcApp.Client — WASM Project](#2-blazoroidcappclient--wasm-project)
    - [Program.cs](#programcs-1)
    - [BffAuthenticationStateProvider.cs](#bffauthenticationstateprovidercs)
    - [TokenService.cs](#tokenservicecs)
    - [ApiClient.cs](#apiclientcs)
+   - [IWeatherApiService.cs](#iweatherapiservicecs)
+   - [WasmWeatherApiService.cs](#wasmweatherapiservicecs)
    - [WasmPage.razor](#wasmpagerazor)
+   - [AutoPage.razor](#autopagerazor)
 3. [BlazorOidcApp.Api — Resource API Project](#3-blazoroidcappapi--resource-api-project)
    - [Program.cs](#programcs-2)
 
@@ -353,6 +357,32 @@ protected override async Task OnInitializedAsync()
 
 ---
 
+### ServerWeatherApiService.cs
+
+The server-side implementation of `IWeatherApiService`, used by `AutoPage.razor` when it runs as Interactive Server. It delegates to the same named `"Api"` HttpClient (with `BearerTokenHandler`) that other server pages use.
+
+```csharp
+// Implements IWeatherApiService so AutoPage can inject it on the server side.
+// IHttpClientFactory is available in server DI — we use the "Api" named client
+// which already has BearerTokenHandler configured. Token handling is automatic.
+public class ServerWeatherApiService(IHttpClientFactory httpClientFactory) : IWeatherApiService
+{
+    public async Task<WeatherForecast[]?> GetWeatherAsync()
+    {
+        var client = httpClientFactory.CreateClient("Api");
+        // BearerTokenHandler intercepts this call and adds Authorization: Bearer <token>
+        return await client.GetFromJsonAsync<WeatherForecast[]>("/api/weather");
+    }
+}
+```
+
+**Registered in** `BlazorOidcApp/Program.cs`:
+```csharp
+builder.Services.AddScoped<IWeatherApiService, ServerWeatherApiService>();
+```
+
+---
+
 ## 2. BlazorOidcApp.Client — WASM Project
 
 This project runs entirely inside the user's browser as WebAssembly (.NET compiled for the browser). It cannot access the server's session directly — it uses the BFF endpoints to bridge the gap.
@@ -386,6 +416,11 @@ builder.Services.AddHttpClient<ApiClient>(client =>
 
 // Register TokenService so it can be injected into ApiClient
 builder.Services.AddScoped<TokenService>();
+
+// Register the WASM-side implementation of the shared Auto render mode service.
+// When AutoPage runs in WASM, this implementation is injected.
+// (ServerWeatherApiService is registered in the server's Program.cs for the server phase.)
+builder.Services.AddScoped<IWeatherApiService, WasmWeatherApiService>();
 ```
 
 ---
@@ -545,6 +580,55 @@ public class ApiClient(HttpClient httpClient, TokenService tokenService)
 
 ---
 
+### IWeatherApiService.cs
+
+A shared interface (defined in the WASM project, so both the server and WASM can use it) that abstracts away _how_ weather data is fetched. This is the key to making `InteractiveAuto` work: the page doesn't care whether it's running on the server or in the browser — it just calls the interface method.
+
+```csharp
+// The contract: one method that returns weather data.
+// Both the server-side and WASM-side implementations must fulfil this.
+public interface IWeatherApiService
+{
+    Task<WeatherForecast[]?> GetWeatherAsync();
+}
+
+// Shared model used by both implementations and AutoPage.razor.
+// Defined here so both the server and WASM projects share the same type.
+public record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+{
+    // Computed property — no API change needed, just a formula
+    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+}
+```
+
+**Why define it in the WASM project?**
+The server project already references the WASM project (to serve its pages). Defining the interface here means both sides see exactly the same type — no duplication, no mismatch.
+
+---
+
+### WasmWeatherApiService.cs
+
+The WASM-side implementation of `IWeatherApiService`. Delegates to `ApiClient`, which handles token fetching and Bearer header attachment.
+
+```csharp
+// Wraps ApiClient in the shared interface.
+// When AutoPage runs in WASM (after bundle is cached), this is the implementation injected.
+public class WasmWeatherApiService(ApiClient apiClient) : IWeatherApiService
+{
+    public Task<WeatherForecast[]?> GetWeatherAsync()
+        // ApiClient internally: calls /bff/token, caches token, attaches Bearer header,
+        // then calls the API directly from the browser.
+        => apiClient.GetAsync<WeatherForecast[]>("/api/weather");
+}
+```
+
+**Registered in** `BlazorOidcApp.Client/Program.cs`:
+```csharp
+builder.Services.AddScoped<IWeatherApiService, WasmWeatherApiService>();
+```
+
+---
+
 ### WasmPage.razor
 
 A page that runs as WebAssembly in the browser. It fetches weather data by calling the API directly from the browser (not via the server).
@@ -580,6 +664,62 @@ private async Task LoadWeather()
     isLoading = false;
 }
 ```
+
+---
+
+### AutoPage.razor
+
+A page that demonstrates `InteractiveAuto` render mode — the most sophisticated Blazor rendering mode. On a **first visit** (WASM bundle not yet cached), it runs as Interactive Server (instant startup via SignalR). On **subsequent visits** (bundle cached), it runs as Interactive WebAssembly (no server connection needed).
+
+```razor
+@page "/auto-page"
+
+@* InteractiveAuto: Blazor decides at runtime which interactive mode to use.
+   - Server-side (first visit): runs in the server's DI context via SignalR.
+     ServerWeatherApiService is injected — reads token via BearerTokenHandler.
+   - WASM (subsequent visits): runs in the browser's DI context.
+     WasmWeatherApiService is injected — calls /bff/token via ApiClient. *@
+@rendermode InteractiveAuto
+
+@attribute [Authorize]
+
+@* IWeatherApiService is the shared abstraction.
+   The correct implementation is injected automatically by DI
+   depending on whether we're on the server or in the browser. *@
+@inject IWeatherApiService WeatherApiService
+```
+
+```razor
+@* OperatingSystem.IsBrowser() is a .NET runtime API.
+   Returns true when the code is running inside WebAssembly (browser),
+   false when running on the server (Interactive Server phase).
+   We use it to update the badge colour and label in real time. *@
+<span class="badge @(OperatingSystem.IsBrowser() ? "bg-success" : "bg-primary")">
+    @(OperatingSystem.IsBrowser() ? "WebAssembly" : "Server") Interactive
+</span>
+```
+
+```csharp
+private async Task LoadWeather()
+{
+    isLoading = true;
+
+    // This single line works in BOTH runtimes:
+    // - On server: ServerWeatherApiService.GetWeatherAsync()
+    //     → IHttpClientFactory → named "Api" HttpClient → BearerTokenHandler adds token
+    // - In WASM: WasmWeatherApiService.GetWeatherAsync()
+    //     → ApiClient → TokenService → /bff/token → Bearer header → direct API call
+    forecasts = await WeatherApiService.GetWeatherAsync();
+
+    isLoading = false;
+}
+```
+
+**How to observe the Auto behaviour:**
+1. Open `/auto-page` for the first time — badge shows **"Server Interactive"**
+2. The browser downloads the WASM bundle silently in the background
+3. Navigate to another page and come back — badge now shows **"WebAssembly Interactive"**
+4. Hard-refresh the browser (Ctrl+F5) — clears WASM cache, badge goes back to **"Server Interactive"** until bundle re-downloads
 
 ---
 
@@ -695,4 +835,6 @@ app.MapGet("/api/me", (ClaimsPrincipal user) =>
 | Server Page (SSR) | C# on server, once | Read from `HttpContext` cookie directly |
 | Weather (SSR) | C# on server, streaming | Read from `HttpContext` via `BearerTokenHandler` |
 | Interactive Server | C# on server, WebSocket | Read from session via `BearerTokenHandler` |
+| Auto Page (first visit) | C# on server, WebSocket | `ServerWeatherApiService` → `BearerTokenHandler` |
+| Auto Page (after WASM cached) | C# in browser (WASM) | `WasmWeatherApiService` → `ApiClient` → `/bff/token` |
 | WASM Page | C# in browser | Fetched from `/bff/token`, cached in memory |
