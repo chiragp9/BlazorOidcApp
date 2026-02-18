@@ -11,6 +11,7 @@ This document walks through every important file in the project with plain-Engli
    - [BearerTokenHandler.cs](#bearertokenhandlercs)
    - [Dashboard.razor](#dashboardrazor)
    - [GdpPage.razor](#gdppagerazor)
+   - [MilitaryPage.razor](#militarypagerazor)
    - [ServerPage.razor](#serverpagerazor)
    - [InteractiveServerPage.razor](#interactiveserverpagerazor)
    - [Weather.razor](#weatherrazor)
@@ -301,16 +302,17 @@ private static readonly GdpEntry[] GdpData =
 private const double WorldGdp = 110.0;
 ```
 
-Inside the table's `@foreach` loop, local variables are calculated per row:
+Inside the table's `@foreach` loop, local variables are declared directly (no `@{ }` wrapper — see Razor gotcha below):
 
 ```razor
-@{
+@foreach (var entry in GdpData)
+{
+    // Bare C# statements inside @foreach are valid — no @{ } needed.
     // Both values use WorldGdp as denominator so the bar width and % label are consistent.
     var worldSharePct = entry.GdpTrillions / WorldGdp * 100;
     var barWidth      = worldSharePct.ToString("F0");   // Rounded integer for CSS width
     var barLabel      = worldSharePct.ToString("F1");   // One decimal for display label
-}
-<div class="progress-bar bg-primary"
+    <div class="progress-bar bg-primary"
      role="progressbar"
      aria-valuenow="@barWidth"
      aria-valuemin="0"
@@ -326,7 +328,69 @@ Inside the table's `@foreach` loop, local variables are calculated per row:
 - Bootstrap 5 accessibility: `role="progressbar"` + `aria-valuenow/min/max/label` make the bars readable by screen readers.
 - No `@inject`, no service calls — simplest possible SSR page.
 
+**Razor gotcha — RZ1010:** Using `@{ }` inside an `@foreach` body causes compiler error `RZ1010: Unexpected "{" after "@" character`. The `@foreach` body is already in mixed code/markup context — bare C# statements like `var x = ...;` are valid without any wrapper.
+
 **Why Static SSR here?** The data never changes and requires no user context. Static SSR gives the fastest response with zero server-side state.
+
+---
+
+### MilitaryPage.razor
+
+A static SSR page showing the top 10 countries by **Global Firepower Index (GFI) 2024** score. All data is hardcoded — no API call, no interactivity.
+
+```razor
+@page "/military"
+@* No @rendermode = Static SSR. Data is hardcoded — no API call, no interactivity needed. *@
+@attribute [Authorize]
+```
+
+```csharp
+// Record with five fields: rank, flag emoji, country, active personnel string, budget, GFI score.
+private record MilitaryEntry(
+    int    Rank,
+    string Flag,
+    string Country,
+    string PersonnelDisplay,   // Pre-formatted string (e.g., "1,390,000") — avoids formatting logic in the view
+    double BudgetBillions,
+    double GfiScore);
+
+private static readonly MilitaryEntry[] MilitaryData =
+[
+    new(1,  "🇺🇸", "United States", "1,390,000",  916.0, 0.0699),
+    // ... (10 entries total — GFI 2024; lower score = stronger military)
+];
+
+// Computed once at class initialisation — sum of all top-10 defense budgets.
+// Used as the denominator for the progress bar so bars show % of combined budget.
+private static readonly double TotalBudget = MilitaryData.Sum(e => e.BudgetBillions);
+```
+
+Budget bar calculation per row (same `@foreach` pattern as GdpPage, no `@{ }` wrapper):
+
+```razor
+@foreach (var entry in MilitaryData)
+{
+    var budgetSharePct = entry.BudgetBillions / TotalBudget * 100;
+    var barWidth       = budgetSharePct.ToString("F0");
+    var barLabel       = budgetSharePct.ToString("F1");
+    <div class="progress-bar bg-danger"
+         role="progressbar"
+         aria-valuenow="@barWidth"
+         aria-valuemin="0"
+         aria-valuemax="100"
+         aria-label="@entry.Country: @barLabel% of top-10 total defense budget"
+         style="width:@barWidth%">
+    </div>
+}
+```
+
+**Design choices:**
+- `PersonnelDisplay` stores the pre-formatted string (`"1,390,000"`) in the data array rather than computing it in the view — keeps the markup clean.
+- `TotalBudget` is `static readonly` computed with `LINQ .Sum()` — calculated once, shared across all requests.
+- Progress bars normalised against the **top-10 total** (not world total) so the chart fills the available space meaningfully.
+- `bg-danger` (red) colour distinguishes this from the GDP page (`bg-primary`/blue).
+
+**Why Static SSR here?** Same reasoning as GdpPage — purely static display data, no user context needed, fastest possible render.
 
 ---
 
@@ -927,6 +991,7 @@ app.MapGet("/api/me", (ClaimsPrincipal user) =>
 |---|---|---|
 | Dashboard (SSR) | C# on server, once | User claims from `HttpContext` cookie; no API call |
 | GDP Top 10 (SSR) | C# on server, once | No token needed; hardcoded data |
+| Military Power (SSR) | C# on server, once | No token needed; hardcoded data |
 | Server Page (SSR) | C# on server, once | Read from `HttpContext` cookie directly |
 | Weather (SSR) | C# on server, streaming | Read from `HttpContext` via `BearerTokenHandler` |
 | Interactive Server | C# on server, WebSocket | Read from session via `BearerTokenHandler` |

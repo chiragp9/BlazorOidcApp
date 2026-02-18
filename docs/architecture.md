@@ -205,6 +205,7 @@ This pattern is documented in the [IETF OAuth 2.0 for Browser-Based Apps](https:
 |------|-------------|----------------------|
 | `Dashboard.razor` | Static SSR | Reads user claims from `HttpContext`; no API call |
 | `GdpPage.razor` | Static SSR | Hardcoded data; no API call, no token needed |
+| `MilitaryPage.razor` | Static SSR | Hardcoded data; no API call, no token needed |
 | `ServerPage.razor` | Static SSR | Reads token from `HttpContext` directly |
 | `Weather.razor` | Static SSR (streaming) | Named `HttpClient` + `BearerTokenHandler` |
 | `InteractiveServerPage.razor` | Interactive Server (SignalR) | Named `HttpClient` + `BearerTokenHandler` |
@@ -276,7 +277,7 @@ Clicking a button = full page reload (new HTTP request).
 - Cannot update UI without a full page reload
 - **Can access `HttpContext`** directly (has the real request/session)
 
-**In this project:** `ServerPage.razor`, `Weather.razor`, `Dashboard.razor`, `GdpPage.razor`
+**In this project:** `ServerPage.razor`, `Weather.razor`, `Dashboard.razor`, `GdpPage.razor`, `MilitaryPage.razor`
 
 ### Interactive Server
 
@@ -382,6 +383,7 @@ The page injects `IWeatherApiService` and calls `GetWeatherAsync()` — identica
 | WASM Page | `/wasm-page` | Interactive WebAssembly |
 | Counter (WASM) | `/counter` | Interactive WebAssembly |
 | GDP Top 10 | `/gdp` | Static SSR |
+| Military Power | `/military` | Static SSR |
 | Weather (SSR) | `/weather` | Static SSR (with streaming) |
 
 ---

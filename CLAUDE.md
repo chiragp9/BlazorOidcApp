@@ -20,6 +20,19 @@ dotnet run --project "BlazorOidcApp.Api/BlazorOidcApp.Api.csproj"
 
 Both servers must run simultaneously for full functionality. There are no automated tests in this project.
 
+### Razor Gotcha — Variables Inside `@foreach`
+
+Do **not** use `@{ }` inside a `@foreach` body to declare local variables — this causes Razor compiler error **RZ1010**. Declare variables directly:
+
+```razor
+@foreach (var item in items)
+{
+    var x = item.Value;   // ✅ correct — bare C# statement in foreach body
+    @{var x = item.Value;} // ❌ wrong — nested @{ } triggers RZ1010
+    <td>@x</td>
+}
+```
+
 ## Architecture
 
 This is a **Backend-for-Frontend (BFF) pattern** implementation demonstrating secure OIDC authentication with hybrid Blazor rendering modes.
@@ -37,7 +50,7 @@ This is a **Backend-for-Frontend (BFF) pattern** implementation demonstrating se
 ### Rendering Modes
 
 The server project uses four Blazor render modes, each demonstrated by a page:
-- **Static SSR** (`ServerPage.razor`, `Weather.razor`, `Dashboard.razor`, `GdpPage.razor`) — Renders on server, no interactivity. Accesses `HttpContext` directly for tokens and user info. `Dashboard.razor` shows user info (name/email/subject/token expiry) and links to all render mode pages. `GdpPage.razor` shows a hardcoded top-10 countries by GDP table (no API call).
+- **Static SSR** (`ServerPage.razor`, `Weather.razor`, `Dashboard.razor`, `GdpPage.razor`, `MilitaryPage.razor`) — Renders on server, no interactivity. Accesses `HttpContext` directly for tokens and user info. `Dashboard.razor` shows user info and links to all render mode pages. `GdpPage.razor` and `MilitaryPage.razor` show hardcoded data tables (no API call).
 - **Interactive Server** (`InteractiveServerPage.razor`) — Server-side C# over SignalR. Uses `BearerTokenHandler` (a `DelegatingHandler`) to inject Bearer tokens into server-side `HttpClient` calls to the API.
 - **Interactive WebAssembly** (`WasmPage.razor`, `Counter.razor`) — Runs in browser. Fetches token from BFF, calls API directly from the browser.
 - **Interactive Auto** (`AutoPage.razor`) — First visit uses Interactive Server (instant startup); subsequent visits switch to WebAssembly once the WASM bundle is cached. Uses `IWeatherApiService` abstraction with two DI-registered implementations: `ServerWeatherApiService` (server DI) and `WasmWeatherApiService` (WASM DI).
