@@ -27,6 +27,11 @@
         <tbody>
             @foreach (var entry in GdpData)
             {
+                @{
+                    var worldSharePct = entry.GdpTrillions / WorldGdp * 100;
+                    var barWidth      = worldSharePct.ToString("F0");
+                    var barLabel      = worldSharePct.ToString("F1");
+                }
                 <tr>
                     <td><strong>@entry.Rank</strong></td>
                     <td>
@@ -38,11 +43,16 @@
                         <div class="d-flex align-items-center gap-2">
                             <div class="progress flex-grow-1" style="height:10px">
                                 <div class="progress-bar bg-primary"
-                                     style="width:@((entry.GdpTrillions / GdpData[0].GdpTrillions * 100).ToString("F0"))%">
+                                     role="progressbar"
+                                     aria-valuenow="@barWidth"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100"
+                                     aria-label="@entry.Country: @barLabel% of world GDP"
+                                     style="width:@barWidth%">
                                 </div>
                             </div>
-                            <small class="text-muted" style="width:40px">
-                                @((entry.GdpTrillions / WorldGdp * 100).ToString("F1"))%
+                            <small class="text-muted" style="min-width:40px">
+                                @barLabel%
                             </small>
                         </div>
                     </td>
